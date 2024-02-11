@@ -140,6 +140,18 @@ class DRESModel:
         self.sep = sep
         self.use_sbert_model = isinstance(model, SentenceTransformer)
 
+    def get_detailed_instruct(self, task_description: str, query: str) -> str:
+        return f'Instruct: {task_description}\nQuery: {query}'
+
+    def llama_wrapper_queries(self, queries, batch_size, **kwargs):
+        # Each query must come with a one-sentence instruction that describes the task
+        task_description = 'Given a web search query, retrieve relevant passages that answer the query'
+        queries_with_task = [self.get_detailed_instruct(task_description, query) for query in queries]
+        return self.llama_wrapper(queries_with_task, batch_size, **kwargs)
+
+    def llama_wrapper_corpus(self, queries, batch_size, **kwargs):
+        return self.llama_wrapper(queries, batch_size, **kwargs)
+
     def llama_wrapper(self, queries, batch_size, **kwargs):
       if isinstance(self.model, Llama):
         all_embeddings = []
@@ -165,7 +177,7 @@ class DRESModel:
                 logger.warning(
                     "Queries will not be truncated. This could lead to memory issues. In that case please lower the batch_size."
                 )
-        encoded_value = self.llama_wrapper(queries, batch_size=batch_size, **kwargs)
+        encoded_value = self.llama_wrapper_queries(queries, batch_size=batch_size, **kwargs)
         return encoded_value
 
     def encode_corpus(self, corpus: List[Dict[str, str]], batch_size: int, **kwargs):
@@ -182,5 +194,5 @@ class DRESModel:
                 for doc in corpus
             ]
 
-        encoded_value = self.llama_wrapper(sentences, batch_size=batch_size, **kwargs)
+        encoded_value = self.llama_wrapper_corpus(sentences, batch_size=batch_size, **kwargs)
         return encoded_value
