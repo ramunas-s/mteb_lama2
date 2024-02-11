@@ -5,6 +5,7 @@ from time import time
 from typing import Dict, List
 from tqdm import tqdm
 import torch
+import torch.nn.functional as F
 
 from llama_cpp import Llama
 
@@ -159,7 +160,8 @@ class DRESModel:
           if len(query) > 10000:
             print(f"Warning: Long query: ({len(query)}")
           embeddings = self.model.create_embedding(query)["data"][0]["embedding"]
-          all_embeddings.append(embeddings)
+          embeddings_normalized = list(F.normalize(torch.FloatTensor(embeddings), p=2, dim=-1))
+          all_embeddings.append(embeddings_normalized)
         encoded_value = torch.FloatTensor(all_embeddings)
       else:
         encoded_value = self.model.encode(queries, batch_size=batch_size, **kwargs)
