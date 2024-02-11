@@ -3,6 +3,10 @@ import json
 import os
 from time import time
 from typing import Dict, List
+from tqdm import tqdm
+import torch
+
+from llama_cpp import Llama
 
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.models import Transformer, WordEmbeddings
@@ -136,6 +140,23 @@ class DRESModel:
         self.sep = sep
         self.use_sbert_model = isinstance(model, SentenceTransformer)
 
+    def llama_wrapper(self, queries, batch_size, **kwargs):
+      if isinstance(self.model, Llama):
+        all_embeddings = []
+        for query in tqdm(queries):
+          if len(query) > 10000:
+            print(f"Warning: Long query: ({len(query)}")
+          embeddings = self.model.create_embedding(query)["data"][0]["embedding"]
+          all_embeddings.append(embeddings)
+        encoded_value = torch.FloatTensor(all_embeddings)
+      else:
+        encoded_value = self.model.encode(queries, batch_size=batch_size, **kwargs)
+
+    #   logger.info(f"Result type: {type(encoded_value)}")
+    #   logger.info(f"Rexult shape: {encoded_value.shape}")
+
+      return encoded_value
+
     def encode_queries(self, queries: List[str], batch_size: int, **kwargs):
         if self.use_sbert_model:
             if isinstance(self.model._first_module(), Transformer):
@@ -144,7 +165,8 @@ class DRESModel:
                 logger.warning(
                     "Queries will not be truncated. This could lead to memory issues. In that case please lower the batch_size."
                 )
-        return self.model.encode(queries, batch_size=batch_size, **kwargs)
+        encoded_value = self.llama_wrapper(queries, batch_size=batch_size, **kwargs)
+        return encoded_value
 
     def encode_corpus(self, corpus: List[Dict[str, str]], batch_size: int, **kwargs):
         if type(corpus) is dict:
@@ -159,4 +181,6 @@ class DRESModel:
                 (doc["title"] + self.sep + doc["text"]).strip() if "title" in doc else doc["text"].strip()
                 for doc in corpus
             ]
-        return self.model.encode(sentences, batch_size=batch_size, **kwargs)
+
+        encoded_value = self.llama_wrapper(sentences, batch_size=batch_size, **kwargs)
+        return encoded_value
